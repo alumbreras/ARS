@@ -20,7 +20,7 @@ class ARS():
     only small amount of samples at a time.
     '''
     
-    def __init__(self, logpdf, pdfargs, xi, D=[-np.Inf,np.Inf], use_lower=False, maxN=50):
+    def __init__(self, f, fprima, xi, D=[-np.Inf,np.Inf], use_lower=False, maxN=50, **pdfargs):
         '''
         initialize the upper (and if needed lower) hulls with the specified params
         logpdf is the target distribution, which returns function and 1st derivative 
@@ -37,14 +37,17 @@ class ARS():
         initialize the hulls enabling use_lower means the lower sqeezing will be used; which is more efficient
         for drawing large numbers of samples
         '''
+        print pdfargs
         self.D = D
-        self.logpdf = logpdf
+        self.f = f
+        self.fprima = fprima
         self.pdfargs = pdfargs
         
         #set limit on how many points to maintain on hull
         self.maxN = 50
         self.x = xi # initialize x, the vector of absicassae at which the function h has been evaluated
-        [self.h,self.hprime] = logpdf(xi,pdfargs)
+        self.h = self.f(xi, **pdfargs)
+        self.hprime = self.fprima(xi, **pdfargs)
 
         #Avoid under/overflow errors. the envelope and pdf are only
         # proporitional to the true pdf, so can choose any constant of proportionality.
@@ -67,7 +70,8 @@ class ARS():
         while n < N:
             [xt,i] = self.sampleUpper()
             # Should perform squeezing test here but not yet implemented 
-            [ht,hprimet] = self.logpdf(xt,self.pdfargs)
+            ht = self.f(xt, **self.pdfargs)
+            hprimet = self.fprima(xt, **self.pdfargs)
             ht = ht - self.offset
             #ut = np.amin(self.hprime*(xt-x) + self.h);
             ut = self.h[i] + (xt-self.x[i])*self.hprime[i]
@@ -93,7 +97,6 @@ class ARS():
             x = np.hstack([self.x,xnew])
             idx = np.argsort(x)
             self.x = x[idx]
-            #[hnew,hprimenew] = self.logpdf(xnew,self.pdfargs)
             self.h = np.hstack([self.h, hnew])[idx]
             self.hprime = np.hstack([self.hprime, hprimenew])[idx]
 
