@@ -20,34 +20,39 @@ class ARS():
     only small amount of samples at a time.
     '''
     
-    def __init__(self, f, fprima, xi, D=[-np.Inf,np.Inf], use_lower=False, maxN=50, **pdfargs):
+    def __init__(self, f, fprima, xi=[-4,1,4], lb=-np.Inf, ub=np.Inf, use_lower=False, ns=50, **fargs):
         '''
         initialize the upper (and if needed lower) hulls with the specified params
-        logpdf is the target distribution, which returns function and 1st derivative 
-        with params pdfargs
-        xi is an ordered vector of points at which to initially evaluate the pdf and 
-        initialize the hulls
         
         Parameters
         ==========
-        logpdf: target distribution, which returns function and 1st derivative 
-        with params pdfargs
-        pdfargs: arguments for logpdf
-        xi: is an ordered vector of points at which to initially evaluate the pdf and 
-        initialize the hulls enabling use_lower means the lower sqeezing will be used; which is more efficient
-        for drawing large numbers of samples
+        f: function that computes log(f(u,...)), for given u, where f(u) is proportional to the
+           density we want to sample from
+        fprima:  d/du log(f(u,...))
+        xi: ordered vector of starting points in wich log(f(u,...) is defined
+            to initialize the hulls
+        D: domain limits
+        use_lower: True means the lower sqeezing will be used; which is more efficient
+                   for drawing large numbers of samples
+        
+        
+        lb: lower bound of the domain
+        ub: upper bound of the domain
+        ns: maximum number of points defining the hulls
+        fargs: arguments for f and fprima
         '''
-        print pdfargs
-        self.D = D
+        
+        self.lb = lb
+        self.ub = ub
         self.f = f
         self.fprima = fprima
-        self.pdfargs = pdfargs
+        self.fargs = fargs
         
         #set limit on how many points to maintain on hull
-        self.maxN = 50
-        self.x = xi # initialize x, the vector of absicassae at which the function h has been evaluated
-        self.h = self.f(xi, **pdfargs)
-        self.hprime = self.fprima(xi, **pdfargs)
+        self.ns = 50
+        self.x = np.array(xi) # initialize x, the vector of absicassae at which the function h has been evaluated
+        self.h = self.f(self.x, **self.fargs)
+        self.hprime = self.fprima(self.x, **self.fargs)
 
         #Avoid under/overflow errors. the envelope and pdf are only
         # proporitional to the true pdf, so can choose any constant of proportionality.
@@ -61,7 +66,7 @@ class ARS():
         self.insert() 
 
         
-    def draw(self,N):
+    def draw(self, N):
         '''
         Draw N samples and update upper and lower hulls accordingly
         '''
@@ -69,21 +74,21 @@ class ARS():
         n=0
         while n < N:
             [xt,i] = self.sampleUpper()
-            # Should perform squeezing test here but not yet implemented 
-            ht = self.f(xt, **self.pdfargs)
-            hprimet = self.fprima(xt, **self.pdfargs)
+            # TODO (John): Should perform squeezing test here but not yet implemented 
+            ht = self.f(xt, **self.fargs)
+            hprimet = self.fprima(xt, **self.fargs)
             ht = ht - self.offset
             #ut = np.amin(self.hprime*(xt-x) + self.h);
             ut = self.h[i] + (xt-self.x[i])*self.hprime[i]
 
-            #Accept sample? - Currently don't use lower
+            # Accept sample? - Currently don't use lower
             u = random.random()
             if u < np.exp(ht-ut):
                 samples[n] = xt
                 n +=1
 
-            if self.u.__len__() < self.maxN:
-                # Update hull with new function evaluations
+            # Update hull with new function evaluations
+            if self.u.__len__() < self.ns:
                 self.insert([xt],[ht],[hprimet])
             
         return samples
@@ -101,21 +106,28 @@ class ARS():
             self.hprime = np.hstack([self.hprime, hprimenew])[idx]
 
         self.z = np.zeros(self.x.__len__()+1)
-        #this is the formula explicitly stated in Gilks. Requires 7(N-1) computations following line requires 6(N-1)
-        #self.z[1:-1] = (np.diff(self.h) + self.x[:-1]*self.hprime[:-1] - self.x[1:]*self.hprime[1:]) / -np.diff(self.hprime); 
+        
+        # This is the formula explicitly stated in Gilks. 
+        # Requires 7(N-1) computations 
+        # Following line requires 6(N-1)
+        # self.z[1:-1] = (np.diff(self.h) + self.x[:-1]*self.hprime[:-1] - self.x[1:]*self.hprime[1:]) / -np.diff(self.hprime); 
+
         self.z[1:-1] = (np.diff(self.h) - np.diff(self.x*self.hprime))/-np.diff(self.hprime) 
-        self.z[0] = self.D[0]; self.z[-1] = self.D[-1]
+        
+        self.z[0] = self.lb; self.z[-1] = self.ub
         N = self.h.__len__()
         self.u = self.hprime[[0]+range(N)]*(self.z-self.x[[0]+range(N)]) + self.h[[0]+range(N)]
 
         self.s = np.hstack([0,np.cumsum(np.diff(np.exp(self.u))/self.hprime)])
         self.cu = self.s[-1]
 
+
     def sampleUpper(self):
         '''
-        return a single value randomly sampled from the upper hull and index of segment
+        Return a single value randomly sampled from the upper hull and index of segment
         '''
         u = random.random()
+        
         # Find the largest z such that sc(z) < u
         i = np.nonzero(self.s/self.cu < u)[0][-1] 
 
