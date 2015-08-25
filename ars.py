@@ -61,8 +61,12 @@ class ARS():
 
         # Derivative at first point in xi must be > 0
         # Derivative at last point in xi must be < 0
-        if not(self.hprime[0] > 0): raise IOError('initial anchor points must span mode of PDF')
-        if not(self.hprime[-1] < 0): raise IOError('initial anchor points must span mode of PDF')
+        if not(self.hprime[0] > 0): 
+            print self.hprime          
+            raise IOError('initial anchor points must span mode of PDF')
+        if not(self.hprime[-1] < 0):
+            print self.hprime 
+            raise IOError('initial anchor points must span mode of PDF')
         self.insert() 
 
         

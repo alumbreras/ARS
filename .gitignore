@@ -1,0 +1,17 @@
+*.pyc
+*~
+.pydevproject
+.spyderproject
+.spyderworkspace
+.project
+.ipynb_checkpoints/
+*.metadata/
+*outputs/
+datasets/
+*.data
+*.hf5
+*.h5
+*.hd
+*.RData
+*.Rhistory
+*.mp4
